@@ -1,0 +1,216 @@
+import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { motion } from "framer-motion";
+import { useRouter } from "next/router";
+
+export default function HomeScreen() {
+  const [whatsapp, setWhatsapp] = useState("");
+  const [validationError, setValidationError] = useState("");
+  const router = useRouter();
+
+  const validateWhatsapp = (number) => {
+    const regex = /^\(?\d{2}\)?\s?\d{4,5}-?\d{4}$/; // Flexible regex for WhatsApp numbers
+    return regex.test(number);
+  };
+
+  const handleLogin = () => {
+    if (!validateWhatsapp(whatsapp)) {
+      setValidationError("Número de WhatsApp inválido! Tente no formato (99) 99999-9999.");
+      return;
+    }
+    setValidationError("");
+    localStorage.setItem("whatsapp", whatsapp);
+    router.push("/eventos");
+  };
+
+  return (
+    <main className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="w-full max-w-md"
+      >
+        <Card className="rounded-2xl shadow-lg">
+          <CardContent className="p-6 space-y-6">
+            <h1 className="text-2xl font-bold text-center text-gray-800">
+              Bem-vindo ao PhotoPlay 📸
+            </h1>
+            <p className="text-gray-600 text-center">
+              Entre com seu número do WhatsApp para visualizar suas fotos esportivas.
+            </p>
+            <Input
+              placeholder="(99) 99999-9999"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              className={`text-center ${validationError ? "border-red-500" : ""}`}
+            />
+            {validationError && <p className="text-red-500 mt-2">{validationError}</p>}
+            <Button
+              onClick={handleLogin}
+              className="w-full bg-green-500 hover:bg-green-600 text-white flex items-center justify-center"
+            >
+              <span className="mr-2">📲</span> Entrar com WhatsApp
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </main>
+  );
+}
+
+export function EventosScreen() {
+  const eventos = [
+    { id: 1, nome: "Campeonato de Futsal", data: "10/04/2025", imagem: "/futsal.jpg" },
+    { id: 2, nome: "Corrida de Rua", data: "12/04/2025", imagem: "/corrida.jpg" },
+    { id: 3, nome: "Torneio de Beach Tennis", data: "15/04/2025", imagem: "/beach.jpg" },
+  ];
+
+  const router = useRouter();
+
+  const handleVerFotos = (eventoId) => {
+    router.push(`/galeria/${eventoId}`);
+  };
+
+  return (
+    <main className="min-h-screen bg-white p-4">
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">Selecione um Evento</h2>
+      <div className="grid gap-4">
+        {eventos.map((evento) => (
+          <Card key={evento.id} className="rounded-2xl shadow-md overflow-hidden">
+            <img src={evento.imagem} alt={evento.nome} className="w-full h-40 object-cover" />
+            <CardContent className="p-4">
+              <h3 className="text-xl font-semibold text-gray-700">{evento.nome}</h3>
+              <p className="text-gray-500">Data: {evento.data}</p>
+              <Button
+                onClick={() => handleVerFotos(evento.id)}
+                className="mt-2 bg-blue-600 text-white hover:bg-blue-700 w-full"
+              >
+                Ver Fotos
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </main>
+  );
+}
+
+export function GaleriaFotos({ eventoId }) {
+  const fotos = [
+    { id: 1, url: "/fotos/foto1.jpg" },
+    { id: 2, url: "/fotos/foto2.jpg" },
+    { id: 3, url: "/fotos/foto3.jpg" },
+  ];
+
+  const [selecionadas, setSelecionadas] = useState([]);
+
+  const toggleSelecionar = (id) => {
+    setSelecionadas((prev) =>
+      prev.includes(id) ? prev.filter((fotoId) => fotoId !== id) : [...prev, id]
+    );
+  };
+
+  const handleComprar = async () => {
+    const stripe = await stripePromise;
+    const whatsapp = localStorage.getItem("whatsapp");
+    const response = await fetch("/api/checkout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ fotos: selecionadas, whatsapp }),
+    });
+
+    const session = await response.json();
+
+    if (session.id) {
+      const result = await stripe.redirectToCheckout({
+        sessionId: session.id,
+      });
+
+      if (result.error) {
+        alert(result.error.message);
+      }
+    } else {
+      alert("Erro ao iniciar checkout. Tente novamente mais tarde.");
+    }
+  };
+
+  return (
+    <main className="min-h-screen p-4 bg-gray-100">
+      <h2 className="text-2xl font-bold text-gray-800 mb-4">Fotos do Evento #{eventoId}</h2>
+      <div className="grid grid-cols-2 gap-4">
+        {fotos.map((foto) => (
+          <div
+            key={foto.id}
+            onClick={() => toggleSelecionar(foto.id)}
+            className={`relative cursor-pointer rounded-lg overflow-hidden border-4 ${
+              selecionadas.includes(foto.id) ? "border-green-500" : "border-transparent"
+            }`}
+          >
+            <img
+              src={foto.url}
+              alt={`Foto ${foto.id}`}
+              className="w-full h-40 object-cover opacity-70"
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
+              {selecionadas.includes(foto.id) && (
+                <span className="text-white font-bold text-xl">✓</span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      <Button
+        onClick={handleComprar}
+        className="mt-6 w-full bg-green-600 hover:bg-green-700 text-white"
+      >
+        Comprar Fotos Selecionadas
+      </Button>
+    </main>
+  );
+}
+
+export function PagamentoSucesso() {
+  const router = useRouter();
+  const [enviando, setEnviando] = useState(true);
+
+  useEffect(() => {
+    const enviarWhatsApp = async () => {
+      const sessionId = router.query.session_id;
+      const whatsapp = localStorage.getItem("whatsapp");
+
+      if (sessionId && whatsapp) {
+        try {
+          await fetch("/api/enviar-fotos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sessionId, whatsapp }),
+          });
+        } catch (error) {
+          console.error("Erro ao enviar fotos via WhatsApp:", error);
+        }
+
+        setEnviando(false);
+      }
+    };
+
+    enviarWhatsApp();
+  }, [router.query.session_id]);
+
+  return (
+    <main className="flex flex-col items-center justify-center min-h-screen bg-white text-center px-4">
+      {enviando ? (
+        <h1 className="text-xl font-semibold text-gray-800">Processando pagamento e enviando suas fotos pelo WhatsApp...</h1>
+      ) : (
+        <>
+          <h1 className="text-2xl font-bold text-green-700">Pagamento confirmado! ✅</h1>
+          <p className="text-gray-700 mt-4">Suas fotos já foram enviadas para seu WhatsApp. Obrigado por comprar conosco!</p>
+        </>
+      )}
+    </main>
+  );
+}
